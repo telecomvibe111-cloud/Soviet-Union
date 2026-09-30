@@ -3,7 +3,10 @@ chcp 65001 >nul
 setlocal
 cd /d "%~dp0"
 
+set "REPO_URL=https://github.com/telecomvibe111-cloud/Soviet-Union.git"
+
 echo ===== Публикация проекта на GitHub =====
+echo Репозиторий: %REPO_URL%
 echo.
 
 where git >nul 2>nul
@@ -17,7 +20,7 @@ echo .idea/>> .gitignore
 echo Создан файл .gitignore
 :has_ignore
 
-rem --- репозиторий
+rem --- локальный репозиторий
 if exist .git goto has_repo
 git init
 :has_repo
@@ -38,34 +41,38 @@ set /p "GIT_EMAIL=Введите почту от аккаунта GitHub: "
 git config --global user.email "%GIT_EMAIL%"
 :has_email
 
-rem --- адрес репозитория на GitHub
-set "REMOTE="
-for /f "delims=" %%i in ('git remote get-url origin 2^>nul') do set "REMOTE=%%i"
-if defined REMOTE goto has_remote
-echo.
-echo Сначала создайте ПУСТОЙ репозиторий на https://github.com/new
-echo Галочки README и .gitignore не ставьте.
-echo.
-set /p "REMOTE=Вставьте адрес репозитория вида https://github.com/логин/имя.git : "
-if not defined REMOTE goto no_remote
-git remote add origin "%REMOTE%"
-:has_remote
-echo.
-echo Репозиторий: %REMOTE%
-echo.
+rem --- привязка к репозиторию на GitHub (адрес всегда берётся из REPO_URL)
+git remote get-url origin >nul 2>nul
+if errorlevel 1 goto add_remote
+git remote set-url origin "%REPO_URL%"
+goto remote_ok
+:add_remote
+git remote add origin "%REPO_URL%"
+:remote_ok
 
 rem --- убираем .venv из индекса, если он туда попал раньше
 git rm -r -q --cached .venv >nul 2>nul
 
-rem --- коммит и отправка
+rem --- коммит
 git add .
-git commit -m "Update project"
+git commit -m "Update %date% %time%"
 echo.
+
+rem --- отправка
 git push -u origin main
-if errorlevel 1 goto push_failed
+if not errorlevel 1 goto success
 
 echo.
+echo Первая отправка не удалась. Пробую подтянуть файлы с GitHub и повторить...
+git pull origin main --allow-unrelated-histories --no-edit
+if errorlevel 1 goto failed
+git push -u origin main
+if errorlevel 1 goto failed
+
+:success
+echo.
 echo ===== Готово! Код загружен на GitHub. =====
+echo %REPO_URL:.git=%
 goto end
 
 :no_git
@@ -73,17 +80,13 @@ echo Git не найден. Установите его с https://git-scm.com/d
 echo и запустите этот файл снова.
 goto end
 
-:no_remote
-echo Адрес не введён. Запустите файл снова.
-goto end
-
-:push_failed
+:failed
 echo.
 echo ===== Не удалось отправить код. =====
 echo Частые причины:
-echo  - репозиторий создан с README или .gitignore: создайте пустой
-echo  - неверный адрес: проверьте его командой git remote -v
-echo  - не пройден вход в GitHub: повторите запуск и войдите в браузере
+echo  - репозиторий не существует или вы вошли в другой аккаунт GitHub
+echo  - не пройден вход: запустите файл снова и войдите в браузере
+echo  - конфликт файлов с GitHub: откройте проект в PyCharm и решите его в Git - Resolve Conflicts
 
 :end
 echo.
